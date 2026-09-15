@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Мелотрек — игра</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="wrap">
+    <header class="hero small">
+        <h1>{{ game.title }}</h1>
+        <a href="/" class="muted">← На главную</a> &nbsp;·&nbsp;
+        <a href="/leaderboard/{{ game.id }}" class="muted">Таблица лидеров →</a>
+    </header>
+
+    <section class="panel" id="roundPicker">
+        <h2>Порядок раундов</h2>
+        <p class="hint">Перетащите раунды мышкой или кнопками ↑ ↓. Затем «Играть по порядку».
+           Можно открыть раунд отдельно ▶ или удалить ✕.</p>
+        <ul id="roundButtons" class="order-list"></ul>
+        <button class="wide" id="playAllBtn" onclick="playAll()" style="display:none">
+            ▶ Играть по порядку
+        </button>
+    </section>
+
+    <section class="panel" id="gameScreen" style="display:none">
+        <div class="turn" id="turn"></div>
+        <div class="progress" id="progress"></div>
+
+        <div id="question" class="question"></div>
+        <div id="textBefore" class="lyrics-box" style="display:none"></div>
+        <img id="artwork" class="artwork" style="display:none">
+
+        <button id="startBtn" onclick="startTrack()">▶ Старт</button>
+
+        <div id="playArea" style="display:none">
+            <audio id="player" controls style="width:100%; margin:16px 0; display:none;"></audio>
+            <div class="timer">⏱ <span id="timer">30</span> сек</div>
+            <div class="row">
+                <input id="answer" placeholder="Ваш ответ"
+                       onkeydown="if(event.key==='Enter') submitAnswer()">
+                <button onclick="submitAnswer()">Ответить</button>
+            </div>
+
+            <div id="reveal" class="reveal-box" style="display:none">
+                <p id="result" class="ok"></p>
+                <p id="aiComment" class="ai-comment" style="display:none"></p>
+                <img id="revealArt" class="artwork" style="display:none">
+                <p id="revealInfo" class="reveal-info"></p>
+                <div id="revealTextWrap" style="display:none">
+                    <p class="hint">Текст:</p>
+                    <div id="revealText" class="lyrics-box"></div>
+                </div>
+                <p class="hint">Послушать оригинал:</p>
+                <audio id="revealPlayer" controls style="width:100%;"></audio>
+            </div>
+
+            <button class="wide" id="nextBtn" onclick="nextTrack()" style="display:none"></button>
+        </div>
+
+        <button class="secondary" onclick="backToRounds()">← К списку раундов</button>
+    </section>
+</div>
+
+<script>
+const gameId = {{ game.id }};
+let roundsOrder = [], playingAll = false, orderIndex = 0;
+let roundId = null, position = 0, total = 0;
+let roundMeta = {};  // round_id -> {number, genre}
+let curRoundNo = "", curRoundGenre = "";
+let rtId = null, curTeamId = null;
+let previewBefore = "", artworkBefore = "", textBefore = "";
+let previewAfter = "", artworkAfter = "", revealTitle = "", revealArtist = "", revealTextVal = "";
+let roundType = "", speed = 1.0;
+let timeLeft = 30, timerInt = null, startTime = null;
+
+async function loadRounds() {
+    const r = await fetch('/games/' + gameId + '/rounds');
+    const rounds = await r.json();
+    roundsOrder = rounds.map(x => x.round_id);
+    roundMeta = {};
+    rounds.forEach(rd => { roundMeta[rd.round_id] = {number: rd.number, genre: rd.genre || ''}; });
+    const box = document.getElementById('roundButtons');
+    box.innerHTML = '';
+    if (!rounds.length) { box.innerHTML = '<li>Раундов нет. Вернитесь на главную и соберите раунд.</li>'; return; }
+    rounds.forEach((rd, i) => {
+        const li = document.createElement('li');
+        li.dataset.rid = rd.round_id;
+        li.draggable = true;
+        li.innerHTML =
+            '<span class="ord-label">Раунд ' + rd.number + ': ' + rd.label +
+            (rd.genre ? ' · ' + rd.genre : '') + ' · ' + rd.difficulty + ' (' + rd.tracks + ')</span>' +
+            '<span class="ord-btns">' +
+            '<button onclick="move(' + i + ',-1)">↑</button>' +
+            '<button onclick="move(' + i + ',1)">↓</button>' +
+            '<button onclick="openRound(' + rd.round_id + ')">▶</button>' +
+            '<button onclick="delRound(' + rd.round_id + ')">✕</button>' +
+            '</span>';
+        addDrag(li);
+        box.appendChild(li);
+    });
+    document.getElementById('playAllBtn').style.display = 'block';
+}
+
+// перетаскивание мышкой
+let dragEl = null;
+function addDrag(li) {
+    li.addEventListener('dragstart', () => { dragEl = li; li.classList.add('dragging'); });
+    li.addEventListener('dragend', async () => {
+        li.classList.remove('dragging');
+        const ids = [...document.querySelectorAll('#roundButtons li')].map(x => parseInt(x.dataset.rid));
+        roundsOrder = ids;
+        await fetch('/games/' + gameId + '/rounds/order', {
+            method: 'PUT', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({round_ids: ids})
+        });
+        loadRounds();
+    });
+    li.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const box = document.getElementById('roundButtons');
+        const after = [...box.querySelectorAll('li:not(.dragging)')].find(el => {
+            const r = el.getBoundingClientRect();
+            return e.clientY < r.top + r.height / 2;
+        });
+        if (after) box.insertBefore(dragEl, after); else box.appendChild(dragEl);
+    });
+}
+
+async function move(i, dir) {
+    const j = i + dir;
+    if (j < 0 || j >= roundsOrder.length) return;
+    [roundsOrder[i], roundsOrder[j]] = [roundsOrder[j], roundsOrder[i]];
+    await fetch('/games/' + gameId + '/rounds/order', {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({round_ids: roundsOrder})
+    });
+    loadRounds();
+}
+
+async function delRound(id) {
+    await fetch('/rounds/' + id, {method: 'DELETE'});
+    loadRounds();
+}
+
+function playAll() { playingAll = true; orderIndex = 0; openRound(roundsOrder[0]); }
+
+function openRound(id) {
+    roundId = id; position = 0;
+    const m = roundMeta[id] || {};
+    curRoundNo = m.number || ''; curRoundGenre = m.genre || '';
+    document.getElementById('roundPicker').style.display = 'none';
+    document.getElementById('gameScreen').style.display = 'block';
+    loadTrack();
+}
+
+function backToRounds() {
+    stopAudio(); clearInterval(timerInt); playingAll = false;
+    document.getElementById('gameScreen').style.display = 'none';
+    document.getElementById('roundPicker').style.display = 'block';
+    loadRounds();
+}
+
+async function loadTrack() {
+    stopAudio(); clearInterval(timerInt);
+    const r = await fetch('/rounds/' + roundId + '/track/' + position);
+    if (!r.ok) { document.getElementById('question').textContent = 'Трек не найден'; return; }
+    const d = await r.json();
+    rtId = d.round_track_id; total = d.total; curTeamId = d.team_id;
+    roundType = d.round_type; speed = d.speed || 1.0;
+    previewBefore = d.preview_before || ""; artworkBefore = d.artwork_before || "";
+    textBefore = d.text_before || "";
+    previewAfter = d.preview_after || ""; artworkAfter = d.artwork_after || "";
+    revealTitle = d.reveal_title || ""; revealArtist = d.reveal_artist || "";
+    revealTextVal = d.reveal_text || "";
+
+    document.getElementById('turn').textContent = 'Отвечает команда: ' + d.team_name;
+    document.getElementById('progress').textContent =
+        'Раунд ' + curRoundNo + ' (' + curRoundGenre + ') · трек ' +
+        (d.position + 1) + ' из ' + d.total + ' · ' + d.difficulty;
+    document.getElementById('question').textContent = d.question;
+
+    document.getElementById('textBefore').style.display = 'none';
+    document.getElementById('artwork').style.display = 'none';
+    document.getElementById('playArea').style.display = 'none';
+    document.getElementById('reveal').style.display = 'none';
+    document.getElementById('startBtn').style.display = 'block';
+    document.getElementById('nextBtn').style.display = 'none';
+    document.getElementById('result').textContent = '';
+    document.getElementById('answer').value = '';
+    document.getElementById('timer').textContent = 30;
+
+    const isCover = roundType === 'guess_cover';
+    const isText = ['by_lyrics','ai_fact'].includes(roundType);
+    document.getElementById('startBtn').textContent =
+        isCover ? 'Показать обложку' : (isText ? 'Показать задание' : '▶ Старт');
+}
+
+function stopAudio() {
+    ['player','revealPlayer'].forEach(id => {
+        const p = document.getElementById(id);
+        if (p) { p.pause(); p.removeAttribute('src'); p.load(); }
+    });
+}
+
+function startTrack() {
+    document.getElementById('startBtn').style.display = 'none';
+    document.getElementById('playArea').style.display = 'block';
+    const player = document.getElementById('player');
+    const isCover = roundType === 'guess_cover';
+    const isText = ['by_lyrics','ai_fact'].includes(roundType);
+
+    if (isCover) {
+        const art = document.getElementById('artwork');
+        art.src = artworkBefore; art.style.display = 'block';
+        player.style.display = 'none';
+    } else if (isText) {
+        const tb = document.getElementById('textBefore');
+        tb.textContent = textBefore; tb.style.display = 'block';
+        player.style.display = 'none';
+    } else {
+        player.style.display = 'block';
+        player.src = previewBefore;
+        player.playbackRate = speed;   // ускоренный раунд
+        player.play().catch(() => {});
+    }
+    startTimer();
+}
+
+function startTimer() {
+    clearInterval(timerInt);
+    timeLeft = 30; startTime = Date.now();
+    document.getElementById('timer').textContent = timeLeft;
+    timerInt = setInterval(() => {
+        timeLeft--;
+        document.getElementById('timer').textContent = timeLeft;
+        if (timeLeft <= 0) clearInterval(timerInt);
+    }, 1000);
+}
+
+async function submitAnswer() {
+    if (!rtId) return;
+    clearInterval(timerInt); stopAudio();
+    const elapsed = (Date.now() - startTime) / 1000;
+    const answer = document.getElementById('answer').value;
+    const r = await fetch('/round-tracks/' + rtId + '/answer', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({team_id: curTeamId, answer_text: answer, answer_time: elapsed})
+    });
+    const d = await r.json();
+
+    // прячем задание, показываем полное раскрытие
+    document.getElementById('textBefore').style.display = 'none';
+    document.getElementById('artwork').style.display = 'none';
+    document.getElementById('player').style.display = 'none';
+
+    document.getElementById('result').textContent =
+        d.correct ? ('✓ Верно! +' + d.points + ' очков')
+                  : ('✗ Неверно. Правильный ответ: ' + d.correct_answer);
+    // комментарий ведущего-ИИ (если есть)
+    const cm = document.getElementById('aiComment');
+    if (d.comment) { cm.textContent = '🎤 ' + d.comment; cm.style.display = 'block'; }
+    else cm.style.display = 'none';
+    document.getElementById('revealInfo').textContent =
+        revealArtist + ' — ' + revealTitle;
+    const ra = document.getElementById('revealArt');
+    if (artworkAfter) { ra.src = artworkAfter; ra.style.display = 'block'; }
+    else ra.style.display = 'none';
+
+    // текст/перевод/загадку показать в ответе
+    if (revealTextVal) {
+        document.getElementById('revealTextWrap').style.display = 'block';
+        document.getElementById('revealText').textContent = revealTextVal;
+    } else {
+        document.getElementById('revealTextWrap').style.display = 'none';
+    }
+
+    const rp = document.getElementById('revealPlayer');
+    rp.src = previewAfter; rp.playbackRate = 1.0;
+    document.getElementById('reveal').style.display = 'block';
+
+    // кнопка перехода
+    const next = document.getElementById('nextBtn');
+    if (position + 1 < total) { next.textContent = 'Следующий трек →'; next.style.display = 'block'; }
+    else if (playingAll && orderIndex + 1 < roundsOrder.length) {
+        next.textContent = 'Следующий раунд →'; next.style.display = 'block';
+    } else {
+        next.textContent = 'К результатам →';
+        next.onclick = () => location.href = '/leaderboard/' + gameId;
+        next.style.display = 'block';
+    }
+}
+
+function nextTrack() {
+    if (position + 1 < total) { position++; loadTrack(); }
+    else if (playingAll && orderIndex + 1 < roundsOrder.length) {
+        orderIndex++; roundId = roundsOrder[orderIndex]; position = 0;
+        const m = roundMeta[roundId] || {};
+        curRoundNo = m.number || ''; curRoundGenre = m.genre || '';
+        loadTrack();
+    }
+}
+
+loadRounds();
+</script>
+</body>
+</html>

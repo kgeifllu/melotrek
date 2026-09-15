@@ -3,3 +3,6 @@ uvicorn
 jinja2
 sqlalchemy
 httpx
+rapidfuzz #считает степень похожести двух строк в процентах(78%)
+pydantic
+pytest

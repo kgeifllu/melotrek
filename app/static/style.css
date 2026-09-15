@@ -1,0 +1,340 @@
+:root {
+    --bg: #1a1526;
+    --panel: #251d38;
+    --accent: #ff5c8a;
+    --accent2: #7c5cff;
+    --text: #f0ecf7;
+    --muted: #a99fc4;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+}
+
+.wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 24px 18px 60px;
+}
+
+.hero {
+    text-align: center;
+    padding: 36px 0 24px;
+}
+
+.hero.small { padding: 20px 0; }
+
+.wave {
+    font-size: 48px;
+    color: var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.15); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .wave { animation: none; }
+}
+
+.hero h1 {
+    margin: 8px 0 4px;
+    font-size: 40px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.sub { color: var(--muted); margin: 0; }
+
+.panel {
+    background: var(--panel);
+    border-radius: 16px;
+    padding: 22px;
+    margin-bottom: 18px;
+}
+
+.panel h2 { margin: 0 0 14px; font-size: 20px; }
+
+.row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+input, select {
+    flex: 1;
+    min-width: 140px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid #3a2f55;
+    background: #1e1830;
+    color: var(--text);
+    font-size: 15px;
+}
+
+button {
+    padding: 12px 20px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+button:hover { opacity: 0.9; }
+
+button.secondary {
+    background: transparent;
+    border: 1px solid var(--accent2);
+    margin-top: 12px;
+}
+
+.bigbtn {
+    display: inline-block;
+    margin-top: 14px;
+    padding: 14px 28px;
+    border-radius: 12px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    color: white;
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.muted { color: var(--muted); font-size: 14px; }
+
+ul, ol { padding-left: 20px; }
+
+.question {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 16px 0;
+    padding: 16px;
+    background: #1e1830;
+    border-radius: 12px;
+    border-left: 4px solid var(--accent);
+}
+
+.timer {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 12px 0;
+}
+
+.artwork {
+    width: 120px;
+    height: 120px;
+    border-radius: 12px;
+    display: block;
+    margin: 0 auto 12px;
+}
+
+.leaderboard { list-style: none; padding: 0; counter-reset: rank; }
+
+.leaderboard li {
+    counter-increment: rank;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 18px;
+    margin-bottom: 8px;
+    background: #1e1830;
+    border-radius: 12px;
+}
+
+.leaderboard li::before {
+    content: counter(rank);
+    font-weight: 700;
+    color: var(--accent);
+    margin-right: 12px;
+}
+
+.leaderboard .team { flex: 1; }
+.leaderboard .score { font-weight: 700; font-size: 18px; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* --- Шаги и подсказки --- */
+.steps {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.step-chip {
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: #251d38;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.step-chip.done {
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    color: white;
+}
+
+.hint {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0 0 12px;
+}
+
+.ok {
+    color: #6ee7a0;
+    font-size: 14px;
+    font-weight: 600;
+    min-height: 18px;
+}
+
+.panel.locked {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
+button.wide, .wide {
+    width: 100%;
+    margin-top: 6px;
+    padding: 14px;
+    font-size: 16px;
+}
+
+ul.chips {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+ul.chips li {
+    background: #1e1830;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+}
+
+#startBtn {
+    width: 100%;
+    padding: 16px;
+    font-size: 17px;
+    margin: 8px 0;
+}
+
+/* --- Игровой экран: чей ход, прогресс --- */
+.turn {
+    text-align: center;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 4px;
+}
+
+.progress {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 14px;
+}
+
+li.clickable {
+    cursor: pointer;
+    background: linear-gradient(90deg, rgba(255,92,138,.15), rgba(124,92,255,.15));
+    border: 1px solid #3a2f55;
+}
+
+li.clickable:hover {
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    color: white;
+}
+
+/* --- Список раундов с кнопками порядка --- */
+.order-list { list-style: none; padding: 0; }
+.order-list li {
+    display: flex; justify-content: space-between; align-items: center;
+    background: #1e1830; padding: 12px 16px; border-radius: 12px; margin-bottom: 8px;
+    gap: 10px;
+}
+.ord-label { flex: 1; font-size: 14px; }
+.ord-btns { display: flex; gap: 6px; }
+.ord-btns button {
+    padding: 6px 12px; font-size: 14px; border-radius: 8px;
+}
+#revealPlayer { margin-top: 8px; }
+
+/* --- Новое: текстовые раунды, раскрытие, перетаскивание --- */
+.lyrics-box {
+    background: #1e1830;
+    border-left: 4px solid var(--accent2);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 14px 0;
+    white-space: pre-line;   /* сохраняем переносы строк текста */
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+.reveal-box {
+    background: #1e1830;
+    border-radius: 12px;
+    padding: 18px;
+    margin-top: 14px;
+    text-align: center;
+}
+
+.reveal-info {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 8px 0;
+    color: var(--text);
+}
+
+.artwork {
+    width: 240px;      /* было 120 — теперь крупнее и в хорошем качестве */
+    height: 240px;
+    border-radius: 14px;
+    display: block;
+    margin: 12px auto;
+    object-fit: cover;
+}
+
+button.mini {
+    padding: 4px 10px;
+    font-size: 13px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+}
+
+.order-list li.dragging { opacity: 0.4; }
+.order-list li { cursor: grab; }
+
+/* --- Комментарий ИИ-ведущего --- */
+.ai-comment {
+    background: linear-gradient(90deg, rgba(255,92,138,.15), rgba(124,92,255,.15));
+    border: 1px solid var(--accent2);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin: 10px 0;
+    font-style: italic;
+    color: var(--text);
+}

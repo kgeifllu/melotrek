@@ -3,14 +3,193 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Мелотрек</title>
-    <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 60px; }
-        h1 { color: #2E6BB0; }
-    </style>
+    <title>Мелотрек — музыкальный квиз</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <h1>Мелотрек работает</h1>
-    <p>Движок музыкальных квизов</p>
+<div class="wrap">
+    <header class="hero">
+        <div class="wave">♫</div>
+        <h1>Мелотрек</h1>
+        <p class="sub">Музыкальный квиз «угадай трек». Соберите игру за 3 шага.</p>
+    </header>
+
+    <div class="steps">
+        <span class="step-chip" id="chip1">1. Игра</span>
+        <span class="step-chip" id="chip2">2. Команды</span>
+        <span class="step-chip" id="chip3">3. Раунды</span>
+        <span class="step-chip" id="chip4">4. Играть</span>
+    </div>
+
+    <section class="panel">
+        <h2>Шаг 1. Создайте игру</h2>
+        <p class="hint">Название игры. Enter или ↓ — дальше.</p>
+        <div class="row">
+            <input id="gameTitle" placeholder="Например: Вечер пятницы"
+                   onkeydown="keyNav(event, createGame, 'teamName')">
+            <button onclick="createGame()">Создать игру</button>
+        </div>
+        <p id="gameInfo" class="ok"></p>
+    </section>
+
+    <section class="panel locked" id="teamPanel">
+        <h2>Шаг 2. Добавьте команды</h2>
+        <p class="hint">Минимум две. Enter — добавить, ↓ — перейти к раундам.</p>
+        <div class="row">
+            <input id="teamName" placeholder="Название команды"
+                   onkeydown="keyNavTeam(event)">
+            <button onclick="addTeam()">Добавить</button>
+        </div>
+        <ul id="teamList" class="chips"></ul>
+    </section>
+
+    <section class="panel locked" id="roundPanel">
+        <h2>Шаг 3. Соберите раунды</h2>
+        <p class="hint">Раунд — это тип вопроса и несколько разных песен.
+           Число песен подгоняется под количество команд.</p>
+        <div class="row">
+            <select id="genre">
+                <option value="mixed">🎲 Микс (все жанры — лучше для ИИ)</option>
+                <option value="pop">Поп</option>
+                <option value="rock">Рок</option>
+                <option value="rap">Рэп / Хип-хоп</option>
+                <option value="electro">Электроника</option>
+                <option value="russian">Русская музыка</option>
+                <option value="80s">Хиты 80-х</option>
+                <option value="90s">Хиты 90-х</option>
+                <option value="soundtrack">Саундтреки</option>
+            </select>
+            <select id="roundType">
+                <option value="guess_artist">Угадай исполнителя · просто</option>
+                <option value="guess_track">Угадай название · средне</option>
+                <option value="guess_cover">Угадай по обложке · средне</option>
+                <option value="by_lyrics">Угадай по тексту · средне</option>
+                <option value="speed">Ускоренный трек · сложно</option>
+                <option value="ai_fact">Факт от ИИ · средне</option>
+            </select>
+        </div>
+        <div class="row">
+            <label>Песен в раунде:</label>
+            <input id="count" type="number" value="10" min="2" max="30" style="max-width:90px">
+        </div>
+        <button onclick="autoBuild()" class="wide">✨ Собрать раунд</button>
+        <p id="roundInfo" class="ok"></p>
+        <ul id="roundList" class="chips"></ul>
+        <a id="playLink" class="bigbtn" style="display:none">Начать игру →</a>
+    </section>
+</div>
+
+<script>
+let currentGame = null;
+const TYPE_LABELS = {
+    guess_artist: 'Угадай исполнителя', guess_track: 'Угадай название',
+    guess_cover: 'Угадай по обложке', by_lyrics: 'Угадай по тексту',
+    speed: 'Ускоренный трек', ai_fact: 'Факт от ИИ'
+};
+
+function unlock(id) { document.getElementById(id).classList.remove('locked'); }
+
+window.addEventListener('DOMContentLoaded', restoreState);
+async function restoreState() {
+    const gid = localStorage.getItem('melotrek_game');
+    if (!gid) return;
+    const gr = await fetch('/games/' + gid);
+    if (!gr.ok) { localStorage.removeItem('melotrek_game'); return; }
+    const g = await gr.json();
+    currentGame = g.id;
+    document.getElementById('gameTitle').value = g.title;
+    document.getElementById('gameInfo').textContent = '✓ Текущая игра: «' + g.title + '»';
+    document.getElementById('chip1').classList.add('done');
+    unlock('teamPanel'); unlock('roundPanel');
+    document.getElementById('playLink').href = '/play/' + g.id;
+    document.getElementById('playLink').style.display = 'inline-block';
+    const teams = await (await fetch('/games/' + g.id + '/teams')).json();
+    teams.forEach(t => {
+        const li = document.createElement('li');
+        li.innerHTML = '<span>' + t.name + '</span> <button class="mini" onclick="delTeam(' + t.id + ', this)">✕</button>';
+        document.getElementById('teamList').appendChild(li);
+    });
+    if (teams.length) document.getElementById('chip2').classList.add('done');
+    const rounds = await (await fetch('/games/' + g.id + '/rounds')).json();
+    rounds.forEach(rd => {
+        const li = document.createElement('li');
+        li.textContent = 'Раунд ' + rd.number + ': ' + rd.label + (rd.genre ? ' · ' + rd.genre : '') + ' (' + rd.tracks + ' песен)';
+        document.getElementById('roundList').appendChild(li);
+    });
+    if (rounds.length) document.getElementById('chip3').classList.add('done');
+}
+
+// Enter = действие, стрелка вниз = перейти к следующему полю
+function keyNav(e, action, nextId) {
+    if (e.key === 'Enter') action();
+    if (e.key === 'ArrowDown') { e.preventDefault(); document.getElementById(nextId).focus(); }
+}
+function keyNavTeam(e) {
+    if (e.key === 'Enter') addTeam();
+    if (e.key === 'ArrowDown') { e.preventDefault(); document.getElementById('genre').focus(); }
+}
+
+async function createGame() {
+    const title = document.getElementById('gameTitle').value || 'Игра';
+    const r = await fetch('/games', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title})
+    });
+    const g = await r.json();
+    currentGame = g.id;
+    localStorage.setItem('melotrek_game', g.id);
+    document.getElementById('gameInfo').textContent = '✓ Игра «' + g.title + '» создана';
+    document.getElementById('chip1').classList.add('done');
+    unlock('teamPanel'); unlock('roundPanel');
+    document.getElementById('playLink').href = '/play/' + currentGame;
+    document.getElementById('teamName').focus();
+}
+
+async function addTeam() {
+    const name = document.getElementById('teamName').value;
+    if (!name || !currentGame) return;
+    const r = await fetch('/games/' + currentGame + '/teams', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name})
+    });
+    if (!r.ok) { const e = await r.json().catch(()=>({})); alert(e.detail || 'Не удалось'); return; }
+    const t = await r.json();
+    const li = document.createElement('li');
+    li.innerHTML = '<span>' + t.name + '</span> ' +
+        '<button class="mini" onclick="delTeam(' + t.id + ', this)">✕</button>';
+    document.getElementById('teamList').appendChild(li);
+    document.getElementById('teamName').value = '';
+    document.getElementById('teamName').focus();
+    document.getElementById('chip2').classList.add('done');
+}
+
+async function delTeam(id, btn) {
+    await fetch('/teams/' + id, {method: 'DELETE'});
+    btn.parentElement.remove();
+}
+
+async function autoBuild() {
+    if (!currentGame) return;
+    const genre = document.getElementById('genre').value;
+    const type = document.getElementById('roundType').value;
+    const count = document.getElementById('count').value || 10;
+    const info = document.getElementById('roundInfo');
+    info.textContent = 'Собираем раунд, подождите...';
+    const r = await fetch('/games/' + currentGame + '/rounds/auto?genre=' +
+        genre + '&round_type=' + type + '&count=' + count, {method: 'POST'});
+    if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        info.textContent = '✗ ' + (err.detail || 'Не удалось. Включите VPN и попробуйте снова.');
+        return;
+    }
+    const d = await r.json();
+    info.textContent = '';
+    const li = document.createElement('li');
+    li.textContent = 'Раунд ' + d.number + ': ' + TYPE_LABELS[type] + ' (' + d.tracks + ' песен)';
+    document.getElementById('roundList').appendChild(li);
+    document.getElementById('chip3').classList.add('done');
+    document.getElementById('playLink').style.display = 'inline-block';
+}
+</script>
 </body>
 </html>
